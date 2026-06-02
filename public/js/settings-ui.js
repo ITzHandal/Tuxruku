@@ -473,30 +473,43 @@ async function searchCurseForgeMods() {
         const res = await fetch(`/api/mods/search?q=${encodeURIComponent(query)}`);
         const data = await res.json();
 
-        if (data.success && data.mods.length > 0) {
+
+        const modsList = data.mods || data.data || [];
+
+        if (data.success && modsList.length > 0) {
             const addTxt = t.settings_mod_btn_add || "Add";
             const byTxt = t.settings_mod_by || "by";
 
-            resultsDiv.innerHTML = data.mods.map(m => `
+            resultsDiv.innerHTML = modsList.map(m => {
+
+                const modId = m.id || m.modId;
+                const modName = m.name || "Unknown Mod";
+                const modAuthor = m.author || (m.authors && m.authors.length > 0 ? m.authors[0].name : "Unknown");
+                const modThumb = m.thumbnail || (m.logo ? m.logo.thumbnailUrl : "https://via.placeholder.com/40?text=Mod");
+                const modSummary = m.summary || "";
+
+                return `
                 <div class="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-slate-700 text-xs shadow-inner">
                     <div class="flex items-center gap-3">
-                        <img src="${m.thumbnail}" class="w-10 h-10 rounded border border-slate-600 object-cover shadow">
+                        <img src="${modThumb}" class="w-10 h-10 rounded border border-slate-600 object-cover shadow" onerror="this.src='https://via.placeholder.com/40?text=Mod'">
                         <div>
-                            <h4 class="font-bold text-white">${m.name} <span class="text-slate-500 font-normal">${byTxt} ${m.author}</span></h4>
-                            <p class="text-slate-400 text-[11px] max-w-md truncate">${m.summary}</p>
-                            <p class="text-cyan-400 font-mono text-[10px] mt-0.5">ID: ${m.id}</p>
+                            <h4 class="font-bold text-white">${modName} <span class="text-slate-500 font-normal">${byTxt} ${modAuthor}</span></h4>
+                            <p class="text-slate-400 text-[11px] max-w-md truncate">${modSummary}</p>
+                            <p class="text-cyan-400 font-mono text-[10px] mt-0.5">ID: ${modId}</p>
                         </div>
                     </div>
-                    <button onclick="quickAddModId('${m.id}', '${m.name.replace(/'/g, "\\'")}')" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-1.5 rounded transition shadow">
+                    <button onclick="quickAddModId('${modId}', '${modName.replace(/'/g, "\\'")}')" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-1.5 rounded transition shadow">
                         <i class="fa fa-plus"></i> ${addTxt}
                     </button>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         } else {
             const noneFound = t.settings_mod_none_found || "No mods found.";
             resultsDiv.innerHTML = `<div class="text-xs text-yellow-500 p-2">${noneFound}</div>`;
         }
     } catch (err) {
+        console.error("Mod Search Error:", err);
         const errTxt = t.settings_mod_search_err || "Error connecting to search.";
         resultsDiv.innerHTML = `<div class="text-xs text-red-500 p-2">${errTxt}</div>`;
     }
