@@ -1,5 +1,3 @@
-<img width="190" height="251" alt="image" src="https://github.com/user-attachments/assets/b558d257-9e32-4100-9122-bcb6d315f77c" />
-
 # Tuxruku ASA Manager (TAM) 🐧🦖
 
 **The Linux Node Command Center for Ark: Survival Ascended.**
@@ -25,6 +23,8 @@ sudo bash install.sh
 
 
 **2. Follow the on-screen instructions!**
+
+<p align="center"><img width="300" height="483" alt="TAM-logo" src="https://github.com/user-attachments/assets/95dd6062-0503-495c-9ae4-e3fc7c5e8c17" /></p>
 
 <img width="1188" height="549" alt="image" src="https://github.com/user-attachments/assets/40ed095f-50de-4895-afb1-1e46c1b986b6" />
 
