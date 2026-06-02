@@ -18,6 +18,7 @@ Tuxruku ASA Manager is a lightweight, open-source, and extremely powerful Web GU
 **1. Download and run the installer script as root:**
 \`\`\`bash
 wget https://raw.githubusercontent.com/ITzHandal/Tuxruku/main/install.sh
+
 sudo bash install.sh
 \`\`\`
 
