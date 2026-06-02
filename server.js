@@ -426,23 +426,69 @@ app.post('/api/instances/:id/stop', async (req, res) => {
 });
 
 // ============================================================
-// MOD MANAGER PROXY APIS (CurseForge)
+// MOD MANAGER PROXY APIS
 // ============================================================
+const https = require('https');
+function fetchCurseTools(url, redirectCount = 0) {
+    return new Promise((resolve, reject) => {
+        if (redirectCount > 5) return reject(new Error('For many redirects'));
+
+
+        const isHttps = url.startsWith('https:');
+        const lib = isHttps ? require('https') : require('http');
+
+        lib.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json'
+            },
+            timeout: 10000
+        }, (res) => {
+
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                let nextUrl = res.headers.location;
+
+
+                if (!nextUrl.startsWith('http://') && !nextUrl.startsWith('https://')) {
+                    const urlObj = new URL(url);
+                    nextUrl = `${urlObj.protocol}//${urlObj.host}${nextUrl}`;
+                }
+
+                console.log(`[VIDERESENDT] Følger lenke til: ${nextUrl}`);
+                return resolve(fetchCurseTools(nextUrl, redirectCount + 1));
+            }
+
+            if (res.statusCode !== 200) return reject(new Error(`Status ${res.statusCode}`));
+
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => {
+                try { resolve(JSON.parse(body)); } catch (e) { reject(new Error('Invalid JSON')); }
+            });
+        }).on('error', reject).on('timeout', function() {
+            this.destroy();
+            reject(new Error('Timeout'));
+        });
+    });
+}
+
+
 app.get('/api/mods/search', async (req, res) => {
     const query = req.query.q || '';
     if (!query) return res.json({ success: true, mods: [] });
+
     try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const response = await fetch(`https://api.curse.tools/v1/cf/mods/search?gameId=83374&searchFilter=${encodeURIComponent(query)}`, { signal: controller.signal });
-        clearTimeout(timeout);
-        const data = await response.json();
+        const data = await fetchCurseTools(`https://api.curse.tools/v1/cf/mods/search?gameId=83374&searchFilter=${encodeURIComponent(query)}`);
         const mappedMods = (data.data || []).map(m => ({
             id: m.id, name: m.name, summary: m.summary || 'No summary', thumbnail: m.logo?.thumbnailUrl || '', author: m.authors?.[0]?.name || 'Unknown'
         }));
         res.json({ success: true, mods: mappedMods });
-    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    } catch (err) {
+        console.error("[SØKEFEIL]:", err.message);
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
+
 
 app.get('/api/mods/names', async (req, res) => {
     let cachedNames = {};
@@ -455,12 +501,7 @@ app.get('/api/mods/names', async (req, res) => {
     for (const id of ids) {
         if (cachedNames[id]) { resultNames[id] = cachedNames[id]; continue; }
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000);
-            const response = await fetch(`https://api.curse.tools/v1/cf/mods/${id}`, { signal: controller.signal });
-            clearTimeout(timeout);
-            if (!response.ok) { resultNames[id] = `Unknown Mod (${id})`; continue; }
-            const data = await response.json();
+            const data = await fetchCurseTools(`https://api.curse.tools/v1/cf/mods/${id}`);
             const modName = data?.data?.name || `Unknown Mod (${id})`;
             resultNames[id] = modName;
             cachedNames[id] = modName;
@@ -469,6 +510,7 @@ app.get('/api/mods/names', async (req, res) => {
     try { if (!fs.existsSync('./data')) fs.mkdirSync('./data'); fs.writeFileSync(MOD_NAMES_FILE, JSON.stringify(cachedNames, null, 2)); } catch (e) {}
     res.json({ success: true, names: cachedNames });
 });
+
 
 app.post('/api/mods/names', (req, res) => {
     const { id, name } = req.body;
@@ -479,7 +521,6 @@ app.post('/api/mods/names', (req, res) => {
     fs.writeFileSync(MOD_NAMES_FILE, JSON.stringify(modNames, null, 2));
     res.json({ success: true });
 });
-
 // ============================================================
 // FRONTEND PAGE ROUTES
 // ============================================================
