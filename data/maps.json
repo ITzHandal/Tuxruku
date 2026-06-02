@@ -1,0 +1,12 @@
+[
+  { "id": "the_island", "name": "The Island", "value": "TheIsland_WP", "official": true },
+  { "id": "the_center", "name": "The Center", "value": "TheCenter_WP", "official": true },
+  { "id": "scorched_earth", "name": "Scorched Earth", "value": "ScorchedEarth_WP", "official": true },
+  { "id": "ragnarok", "name": "Ragnarok", "value": "Ragnarok_WP", "official": true },
+  { "id": "aberration", "name": "Aberration", "value": "Aberration_WP", "official": true },
+  { "id": "extinction", "name": "Extinction", "value": "Extinction_WP", "official": true },
+  { "id": "valguero", "name": "Valguero", "value": "Valguero_WP", "official": true },
+  { "id": "astraeos", "name": "Astraeos", "value": "Astraeos_WP", "official": false },
+  { "id": "lost_colony", "name": "Lost Colony", "value": "LostColony_WP", "official": false },
+  { "id": "club_ark", "name": "Club ARK", "value": "BobsMissions_WP", "official": true, "modId": "1005639" }
+]

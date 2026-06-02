@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tuxruku ASA Manager - Backup Vault</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body class="bg-slate-900 text-slate-200 p-6">
+
+<div class="max-w-4xl mx-auto">
+    <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+        <div>
+            <a href="/" class="text-xs text-blue-400 hover:underline uppercase tracking-wider font-bold">
+                <i class="fa fa-arrow-left mr-1"></i> <span data-i18n="backup_back_dashboard">Back to Dashboard</span>
+            </a>
+            <h1 class="text-3xl font-extrabold text-white tracking-tight mt-1 font-mono">
+                <span data-i18n="backup_title_vault">Data Vault:</span> <span id="backup-server-name" class="text-emerald-500" data-i18n="backup_loading">Loading...</span>
+            </h1>
+            <p class="text-slate-400 text-xs mt-1" data-i18n="backup_subtitle">Manage physical savegames, snapshots and rollbacks</p>
+        </div>
+        <div class="flex gap-3">
+            <input type="file" id="upload-save" accept=".zip,.tar.gz" class="hidden" onchange="uploadBackupFile(event)">
+
+            <button id="btn-upload" onclick="document.getElementById('upload-save').click()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-6 rounded-xl transition flex items-center shadow-lg shadow-blue-600/20">
+                <i class="fa fa-upload mr-2"></i> <span data-i18n="backup_btn_upload">Upload Singleplayer (.zip)</span>
+            </button>
+
+            <button onclick="createBackup()" id="btn-create" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded-xl transition flex items-center shadow-lg shadow-emerald-600/20">
+                <i class="fa fa-file-zipper mr-2"></i> <span data-i18n="backup_btn_snapshot">Take Snapshot</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-4">
+        <div class="flex items-center gap-2 text-emerald-400 font-bold border-b border-slate-700 pb-2">
+            <i class="fa fa-archive text-lg"></i> <span data-i18n="backup_lbl_restore_points">Available Restore Points</span>
+        </div>
+        <div id="backup-list" class="space-y-3 pt-2">
+            <div class="text-center text-slate-500 py-10">
+                <i class="fa fa-spinner fa-spin mr-2"></i> <span data-i18n="backup_scanning">Scanning backup directory...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/i18n.js"></script>
+<script>
+    // ============================================================
+    // Tuxruku ASA Manager - BACKUP VAULT UI
+    // ============================================================
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const serverId = urlParams.get('id');
+
+    async function initBackupManager() {
+        if (typeof initTranslation === 'function') await initTranslation();
+
+        if (!serverId) return alert(t.backup_err_no_id || "No server ID provided in URL!");
+
+        try {
+            const instRes = await fetch('/api/instances');
+            const instances = await instRes.json();
+            const currentInst = instances.find(i => i.id == serverId);
+            if (currentInst) document.getElementById('backup-server-name').innerText = currentInst.name;
+            await loadBackupList();
+        } catch (err) {
+            console.error("Failed to initialize backup manager", err);
+        }
+    }
+
+    async function loadBackupList() {
+        const listDiv = document.getElementById('backup-list');
+        try {
+            const res = await fetch(`/api/instances/${serverId}/backup/list`);
+            const data = await res.json();
+
+            const btnRestoreTxt = t.backup_btn_restore || "Restore / Install";
+
+            if (data.success && data.backups.length > 0) {
+                listDiv.innerHTML = data.backups.map(b => {
+                    const dateFormatted = new Date(b.created).toLocaleString();
+                    return `
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-black/30 p-4 rounded-xl border border-slate-700/60 font-mono text-xs gap-4">
+                            <div class="space-y-1">
+                                <span class="text-slate-300 block text-sm font-bold font-sans truncate max-w-md"><i class="fa fa-file-archive text-emerald-500 mr-2"></i>${b.filename}</span>
+                                <div class="flex gap-4 text-slate-500 text-[11px] font-sans">
+                                    <span><i class="fa fa-calendar mr-1"></i> ${dateFormatted}</span>
+                                    <span><i class="fa fa-weight-hanging mr-1"></i> ${b.size}</span>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 w-full md:w-auto font-sans">
+                                <button onclick="restoreBackup('${b.filename}')" class="flex-1 bg-amber-600/20 hover:bg-amber-600 border border-amber-500/40 text-amber-300 hover:text-white px-3 py-1.5 rounded-lg transition font-bold text-xs flex items-center justify-center gap-1">
+                                    <i class="fa fa-rotate-left"></i> ${btnRestoreTxt}
+                                </button>
+                                <button onclick="deleteBackup('${b.filename}')" class="text-red-400 hover:text-red-500 p-2 hover:bg-red-500/10 rounded-lg transition">
+                                    <i class="fa fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>`;
+                }).join('');
+            } else {
+                const emptyVaultTxt = t.backup_empty_vault || "The vault is empty. No restore points found.";
+                listDiv.innerHTML = `<div class="text-center text-slate-500 py-12"><i class="fa fa-vault text-3xl text-slate-600 block mb-3"></i><p class="text-sm">${emptyVaultTxt}</p></div>`;
+            }
+        } catch (err) {
+            const scanErrTxt = t.backup_err_scan || "Error scanning data vault.";
+            listDiv.innerHTML = `<div class="text-xs text-red-500 p-2">${scanErrTxt}</div>`;
+        }
+    }
+
+    async function createBackup() {
+        const btn = document.getElementById('btn-create');
+        const compressingTxt = t.backup_compressing || "Compressing Saved...";
+        const snapshotTxt = t.backup_btn_snapshot || "Take Snapshot";
+
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa fa-spinner fa-spin mr-2"></i> ${compressingTxt}`;
+
+        try {
+            const res = await fetch(`/api/instances/${serverId}/backup/create`, { method: 'POST' });
+            const data = await res.json();
+            alert(data.message);
+            await loadBackupList();
+        } catch (e) {
+            alert(t.backup_err_failed || "Backup failed.");
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa fa-file-zipper mr-2"></i> <span>${snapshotTxt}</span>`;
+    }
+
+    async function uploadBackupFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('savefile', file);
+
+        const btn = document.getElementById('btn-upload');
+        const originalHTML = btn.innerHTML;
+        const uploadingTxt = t.backup_uploading || "Uploading...";
+
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa fa-spinner fa-spin mr-2"></i> ${uploadingTxt}`;
+
+        try {
+            const res = await fetch(`/api/instances/${serverId}/backup/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            alert(data.message);
+            await loadBackupList();
+        } catch (e) {
+            alert(t.backup_err_upload || "Upload failed. Check file size or server logs.");
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        event.target.value = '';
+    }
+
+    async function restoreBackup(filename) {
+        const confirmMsg = t.backup_confirm_restore || "WARNING! Restoring will overwrite the current game world.\n\nAre you sure you want to install:";
+        if (!confirm(`${confirmMsg}\n${filename}?`)) return;
+
+        try {
+            const res = await fetch(`/api/instances/${serverId}/backup/restore`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename })
+            });
+            const data = await res.json();
+            alert(data.message);
+        } catch (e) {
+            alert(t.backup_err_restore || "Restore failed.");
+        }
+    }
+
+    async function deleteBackup(filename) {
+        const confirmDel = t.backup_confirm_delete || "Delete this backup/file from the disk?";
+        if (!confirm(confirmDel)) return;
+
+        try {
+            const res = await fetch(`/api/instances/${serverId}/backup/${filename}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) await loadBackupList();
+        } catch (e) {
+            console.error("Failed to delete backup", e);
+        }
+    }
+
+    window.onload = initBackupManager;
+</script>
+</body>
+</html>

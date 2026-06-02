@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tuxruku ASA Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/i18n.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 p-6">
+
+<div class="max-w-6xl mx-auto">
+    <header class="flex justify-between items-center mb-10 border-b border-slate-700 pb-6">
+        <div>
+            <h1 class="text-4xl font-extrabold text-white tracking-tight"><span data-i18n="title_main">Tuxruku ASA Manager</span> </h1>
+            <p class="text-slate-400 mt-1" data-i18n="title_sub">Keep Calm and Poly Farm</p>
+        </div>
+        <div class="flex gap-3 items-center">
+            <select onchange="setLanguage(this.value)" class="bg-slate-800 border border-slate-600 text-slate-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none mr-2">
+                <option value="en" id="lang-en">🇬🇧 English</option>
+                <option value="no" id="lang-no">🇳🇴 Norsk</option>
+            </select>
+
+            <a id="admin-panel-btn" href="/server-admin" class="hidden bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-lg transition border border-amber-600 shadow-lg shadow-amber-600/10 items-center justify-center gap-2">
+                <i class="fa fa-user-shield"></i> <span data-i18n="btn_admin_panel">Admin Panel</span>
+            </a>
+            <button onclick="showVersionModal()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-lg transition border border-slate-600">
+                <i class="fa fa-box-archive"></i> <span data-i18n="btn_caches">Caches</span>
+            </button>
+            <button onclick="showCreateModal()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg transition">
+                <i class="fa fa-plus"></i> <span data-i18n="btn_create_server">Create Server</span>
+            </button>
+            <button onclick="logout()" class="bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white border border-red-600/30 font-bold py-2 px-4 rounded-lg transition">
+                <i class="fa fa-power-off"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex items-center gap-4">
+            <div class="bg-blue-600/20 text-blue-400 p-3 rounded-lg text-xl"><i class="fa fa-microchip"></i></div>
+            <div>
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider" data-i18n="stat_cpu">CPU Load</p>
+                <p id="stat-cpu" class="text-xl font-bold text-white font-mono">--%</p>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex items-center gap-4">
+            <div class="bg-emerald-600/20 text-emerald-400 p-3 rounded-lg text-xl"><i class="fa fa-memory"></i></div>
+            <div class="w-full">
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider" data-i18n="stat_memory">Memory</p>
+                <div class="flex justify-between items-baseline">
+                    <p id="stat-ram-perc" class="text-xl font-bold text-white font-mono">--%</p>
+                    <p id="stat-ram-text" class="text-xs text-slate-500 font-mono">-- / -- GB</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex items-center gap-4">
+            <div class="bg-purple-600/20 text-purple-400 p-3 rounded-lg text-xl"><i class="fa fa-hard-drive"></i></div>
+            <div>
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider" data-i18n="stat_disk">Disk Usage</p>
+                <p id="stat-disk" class="text-xl font-bold text-white font-mono">--</p>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex items-center gap-4">
+            <div class="bg-orange-600/20 text-orange-400 p-3 rounded-lg text-xl"><i class="fa fa-clock"></i></div>
+            <div>
+                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider" data-i18n="stat_uptime">Host Uptime</p>
+                <p id="stat-uptime" class="text-xl font-bold text-white font-mono">--</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="instances-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+</div>
+
+<div id="modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 p-8 rounded-2xl w-full max-w-md border border-slate-700 shadow-2xl">
+        <h2 class="text-2xl font-bold mb-6 text-white" data-i18n="modal_create_title">Create New Instance</h2>
+        <div class="space-y-4">
+            <div>
+                <label class="text-xs text-slate-400 block mb-1" data-i18n="modal_create_name">Server Name</label>
+                <input id="new-name" type="text" placeholder="e.g. Island Cluster" class="w-full bg-slate-900 border border-slate-600 p-3 rounded text-white focus:outline-none focus:border-blue-500 transition">
+            </div>
+            <div>
+                <label class="text-xs text-slate-400 block mb-1" data-i18n="modal_create_map">Select Map</label>
+                <select id="new-map" class="w-full bg-slate-900 border border-slate-600 p-3 rounded text-white focus:outline-none focus:border-blue-500 transition"></select>
+            </div>
+            <div>
+                <label class="text-xs text-slate-400 block mb-1" data-i18n="modal_create_port">Port</label>
+                <input id="new-port" type="number" placeholder="7777" class="w-full bg-slate-900 border border-slate-600 p-3 rounded text-white focus:outline-none focus:border-blue-500 transition">
+            </div>
+            <div class="pt-4 space-y-2">
+                <button onclick="createInstance()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold transition" data-i18n="btn_create_server">Create Server</button>
+                <button onclick="hideCreateModal()" class="w-full text-slate-400 hover:text-white py-2 text-sm transition" data-i18n="btn_cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="delete-modal" class="hidden fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+    <div class="bg-slate-800 p-8 rounded-2xl w-full max-w-md border border-red-500/50 shadow-[0_0_50px_-12px_rgba(239,68,68,0.5)]">
+        <div class="flex items-center gap-4 mb-6">
+            <div class="bg-red-500/20 text-red-500 p-4 rounded-full text-2xl"><i class="fa fa-triangle-exclamation"></i></div>
+            <div>
+                <h2 class="text-2xl font-bold text-white" data-i18n="modal_del_title">Delete Server</h2>
+                <p class="text-slate-400 text-sm" data-i18n="modal_del_subtitle">This action cannot be undone!</p>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <p class="text-sm text-slate-300">
+                <span data-i18n="modal_del_warning">You are about to permanently delete</span>
+                <strong id="delete-server-name" class="text-white"></strong>
+                <span data-i18n="modal_del_warning_2">and all its save files.</span>
+            </p>
+
+            <div>
+                <label class="text-xs text-slate-400 block mb-1 uppercase font-bold tracking-wider" data-i18n="modal_del_lbl_pass">Server Admin Password</label>
+                <input id="delete-admin-password" type="password" placeholder="Enter password to confirm..." class="w-full bg-slate-900 border border-slate-600 p-3 rounded text-white focus:outline-none focus:border-red-500 transition shadow-inner">
+            </div>
+
+            <div id="delete-error-msg" class="hidden text-red-400 text-sm font-bold bg-red-900/30 p-2 rounded border border-red-500/30 text-center"></div>
+
+            <div class="pt-4 flex gap-3">
+                <button onclick="hideDeleteModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold transition" data-i18n="btn_cancel">Cancel</button>
+                <button onclick="confirmDelete()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold transition shadow-lg shadow-red-600/20" data-i18n="btn_wipe_server">Wipe Server</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="version-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 p-8 rounded-2xl w-full max-w-2xl border border-slate-700 flex flex-col max-h-[90vh] shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-white" data-i18n="modal_cache_title">Version Cache Manager</h2>
+            <button onclick="hideVersionModal()" class="text-slate-400 hover:text-white transition"><i class="fa fa-times text-xl"></i></button>
+        </div>
+        <div id="versions-list" class="mb-6 space-y-3"></div>
+        <div class="bg-black p-4 rounded border border-slate-700 flex-1 overflow-y-auto min-h-[200px] font-mono text-sm text-green-400" id="steamcmd-console">> Ready.</div>
+    </div>
+</div>
+
+<script>
+    // ============================================================
+    // Tuxruku ASA Manager - DASHBOARD LOGIC
+    // ============================================================
+
+    const socket = io();
+
+    // LIVE SYSTEM MONITOR
+    socket.on('system-stats', (stats) => {
+        document.getElementById('stat-cpu').innerText = `${stats.cpu}%`;
+        document.getElementById('stat-ram-perc').innerText = `${stats.ramPercent}%`;
+        document.getElementById('stat-ram-text').innerText = `${stats.ramUsed} / ${stats.ramTotal} GB`;
+        document.getElementById('stat-disk').innerText = stats.disk;
+        document.getElementById('stat-uptime').innerText = stats.uptime;
+    });
+
+    async function init() {
+        if (typeof initTranslation === 'function') await initTranslation();
+        // Ensure language dropdown displays correct selection
+        const langDropdown = document.querySelector('select');
+        if (langDropdown) langDropdown.value = currentLang;
+
+        await checkAdminStatus();
+        await loadMaps();
+        await renderInstances();
+        await renderVersions();
+    }
+
+    async function loadMaps() {
+        try {
+            const res = await fetch('/api/maps');
+            const maps = await res.json();
+            document.getElementById('new-map').innerHTML = maps.map(map => `<option value="${map.value}">${map.name}</option>`).join('');
+        } catch (e) {
+            console.error("Failed to load maps", e);
+        }
+    }
+
+    async function renderInstances() {
+        try {
+            const res = await fetch('/api/instances');
+            const instances = await res.json();
+            const list = document.getElementById('instances-list');
+
+            const noServersTxt = t.dash_no_servers || "No servers found.";
+
+            if (instances.length === 0) {
+                list.innerHTML = `<p class="col-span-full text-center text-slate-500 py-20">${noServersTxt}</p>`;
+                return;
+            }
+
+            const btnStopTxt = t.dash_btn_stop || "Stop";
+            const btnStartTxt = t.dash_btn_start || "Start";
+            const lblMapTxt = t.dash_lbl_map || "Map:";
+            const lblPortTxt = t.dash_lbl_port || "Port:";
+            const tooltipBackup = t.dash_tooltip_backup || "Backup Manager";
+            const tooltipSettings = t.dash_tooltip_settings || "Server Settings";
+            const tooltipDelete = t.dash_tooltip_delete || "Delete Server";
+
+            list.innerHTML = instances.map(inst => {
+                const isRunning = inst.status === 'Running';
+                const statusColor = isRunning ? 'text-green-500' : 'text-yellow-500';
+
+                const actionButton = isRunning
+                    ? `<button onclick="stopInstance(${inst.id})" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-2.5 rounded font-bold transition shadow-lg shadow-red-600/20">${btnStopTxt}</button>`
+                    : `<button onclick="startInstance(${inst.id})" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded font-bold transition shadow-lg shadow-green-600/20">${btnStartTxt}</button>`;
+
+                return `
+                    <div class="bg-slate-800 border border-slate-700 p-6 rounded-xl shadow-xl flex flex-col">
+                        <div class="flex justify-between items-start mb-4">
+                            <h3 class="text-xl font-bold text-white">${inst.name}</h3>
+                            <span class="px-2 py-1 bg-slate-700 rounded text-xs font-semibold ${statusColor} status-badge">${inst.status}</span>
+                        </div>
+                        <p class="text-sm text-slate-400 mb-1"><span class="font-semibold text-slate-500">${lblMapTxt}</span> ${inst.map}</p>
+                        <p class="text-sm text-slate-400 mb-6 flex-1"><span class="font-semibold text-slate-500">${lblPortTxt}</span> ${inst.port}</p>
+
+                        <div class="flex gap-2 relative z-10 mt-auto">
+                            ${actionButton}
+
+                            <a href="/server-rcon?id=${inst.id}" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded transition shadow-lg shadow-indigo-600/20 flex justify-center items-center gap-2">
+                                <i class="fa fa-satellite-dish"></i> <span class="hidden xl:inline">RCON</span>
+                            </a>
+
+                            <a href="/server-backup?id=${inst.id}" class="bg-slate-700 hover:bg-slate-600 w-11 flex justify-center items-center rounded text-emerald-400 hover:text-white transition" title="${tooltipBackup}">
+                                <i class="fa fa-vault"></i>
+                            </a>
+                            <a href="/server-settings?id=${inst.id}" class="bg-slate-700 hover:bg-slate-600 w-11 flex justify-center items-center rounded text-white transition" title="${tooltipSettings}">
+                                <i class="fa fa-cog"></i>
+                            </a>
+                            <button onclick="showDeleteModal(${inst.id}, '${inst.name}')" class="bg-slate-700 hover:bg-red-600 w-11 flex justify-center items-center rounded text-red-400 hover:text-white transition" title="${tooltipDelete}">
+                                <i class="fa fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>`;
+            }).join('');
+        } catch (e) {
+            console.error("Failed to render instances", e);
+        }
+    }
+
+    async function renderVersions() {
+        try {
+            const res = await fetch('/api/versions');
+            const versions = await res.json();
+
+            const statusTxt = t.dash_lbl_status || "Status:";
+            const syncBtnTxt = t.dash_btn_sync || "Sync Cache";
+
+            document.getElementById('versions-list').innerHTML = versions.map(v => `
+                    <div class="flex justify-between items-center bg-slate-900 p-4 rounded border border-slate-700">
+                        <div>
+                            <h4 class="font-bold text-white">${v.name}</h4>
+                            <p class="text-xs text-slate-400">${statusTxt} <span class="text-green-400">${v.status}</span></p>
+                        </div>
+                        <button onclick="downloadVersion()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded text-sm font-bold transition shadow-lg shadow-purple-600/20">
+                            <i class="fa fa-download mr-1"></i> ${syncBtnTxt}
+                        </button>
+                    </div>`).join('');
+        } catch (e) {
+            console.error("Failed to render versions", e);
+        }
+    }
+
+    async function startInstance(id) {
+        await fetch(`/api/instances/${id}/start`, { method: 'POST' });
+        renderInstances();
+    }
+
+    async function stopInstance(id) {
+        await fetch(`/api/instances/${id}/stop`, { method: 'POST' });
+        renderInstances();
+    }
+
+    // SOCKET LISTENERS
+    socket.on('status-update', () => renderInstances());
+
+    socket.on('version-download-log', (data) => {
+        const consoleDiv = document.getElementById('steamcmd-console');
+        consoleDiv.innerHTML += `<div>${data.replace(/\n/g, '<br>')}</div>`;
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    });
+
+    socket.on('version-download-complete', (code) => {
+        const consoleDiv = document.getElementById('steamcmd-console');
+        const successTxt = t.dash_cache_success || "> Update complete! The cache is now synchronized with the latest version of ASA.";
+        const errTxt = t.dash_cache_error || "> Update failed with code:";
+
+        if (code === 0) {
+            consoleDiv.innerHTML += `<br><span class="text-green-500 font-bold">${successTxt}</span>`;
+        } else {
+            consoleDiv.innerHTML += `<br><span class="text-red-500 font-bold">${errTxt} ${code}.</span>`;
+        }
+        renderVersions();
+    });
+
+    // MODAL CONTROLLERS
+    function showCreateModal() { document.getElementById('modal').classList.remove('hidden'); }
+    function hideCreateModal() { document.getElementById('modal').classList.add('hidden'); }
+    function showVersionModal() { document.getElementById('version-modal').classList.remove('hidden'); }
+    function hideVersionModal() { document.getElementById('version-modal').classList.add('hidden'); }
+
+    async function createInstance() {
+        const name = document.getElementById('new-name').value;
+        const map = document.getElementById('new-map').value;
+        const port = document.getElementById('new-port').value;
+
+        if(!name || !port) {
+            return alert(t.dash_err_fill_fields || "Please fill out all fields.");
+        }
+
+        try {
+            const res = await fetch('/api/instances', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, map, port })
+            });
+            const result = await res.json();
+            if(!result.success) alert(result.message);
+
+            hideCreateModal();
+            renderInstances();
+        } catch (e) {
+            console.error("Failed to create instance", e);
+        }
+    }
+
+    // DELETE LOGIC
+    let serverToDeleteId = null;
+
+    function showDeleteModal(id, name) {
+        serverToDeleteId = id;
+        document.getElementById('delete-server-name').innerText = name;
+        document.getElementById('delete-admin-password').value = '';
+        document.getElementById('delete-error-msg').classList.add('hidden');
+        document.getElementById('delete-modal').classList.remove('hidden');
+    }
+
+    function hideDeleteModal() {
+        serverToDeleteId = null;
+        document.getElementById('delete-modal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        if (!serverToDeleteId) return;
+        const password = document.getElementById('delete-admin-password').value;
+        const errorMsg = document.getElementById('delete-error-msg');
+
+        if (!password) {
+            errorMsg.innerText = t.dash_err_pass_req || "Please enter the admin password.";
+            errorMsg.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/instances/${serverToDeleteId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ adminPassword: password })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                hideDeleteModal();
+                renderInstances();
+            } else {
+                errorMsg.innerText = data.message;
+                errorMsg.classList.remove('hidden');
+            }
+        } catch (e) {
+            errorMsg.innerText = t.dash_err_comms || "Failed to communicate with server.";
+            errorMsg.classList.remove('hidden');
+        }
+    }
+
+    async function logout() {
+        await fetch('/auth/logout', { method: 'POST' });
+        window.location.href = '/login.html';
+    }
+
+    async function downloadVersion() {
+        const consoleDiv = document.getElementById('steamcmd-console');
+        const startTxt = t.dash_cache_start || "> Starting SteamCMD to check for updates... Please wait.";
+        const netErrTxt = t.dash_cache_net_err || "> Error: Could not connect to the update server.";
+
+        consoleDiv.innerHTML = `<span class="text-yellow-400">${startTxt}</span><br>`;
+
+        try {
+            await fetch('/api/versions/download', { method: 'POST' });
+        } catch (e) {
+            consoleDiv.innerHTML += `<br><span class="text-red-500">${netErrTxt}</span>`;
+        }
+    }
+
+    async function checkAdminStatus() {
+        try {
+            const adminCheck = await fetch('/server-admin');
+            const adminBtn = document.getElementById('admin-panel-btn');
+
+            if (adminCheck.redirected) {
+                adminBtn.classList.add('hidden');
+                adminBtn.classList.remove('flex');
+            } else {
+                adminBtn.classList.remove('hidden');
+                adminBtn.classList.add('flex');
+            }
+        } catch(e) {
+            console.error("Failed to check admin status", e);
+        }
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tuxruku ASA Manager - Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body class="bg-slate-900 text-slate-200 p-6 min-h-screen">
+
+<div class="max-w-6xl mx-auto space-y-6">
+    <header class="flex justify-between items-center border-b border-slate-700 pb-4">
+        <div>
+            <a href="/" class="text-xs text-blue-400 hover:underline uppercase tracking-wider font-bold">
+                <i class="fa fa-arrow-left mr-1"></i> <span data-i18n="admin_back_dashboard">Back to Dashboard</span>
+            </a>
+            <h1 class="text-3xl font-extrabold text-white tracking-tight mt-1 font-mono" data-i18n="admin_title">User & Permissions Manager</h1>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <div class="space-y-6">
+
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl">
+                <h3 class="text-lg font-bold text-cyan-400 border-b border-slate-700 pb-2 mb-4 uppercase tracking-wider">
+                    <i class="fa fa-user-plus mr-2"></i><span data-i18n="admin_create_user_title">Create User</span>
+                </h3>
+                <div class="space-y-4 text-sm">
+                    <div>
+                        <label class="text-slate-400 block mb-1" data-i18n="admin_lbl_username">Username</label>
+                        <input id="new-user" type="text" class="w-full bg-slate-900 border border-slate-600 p-2 rounded text-white outline-none focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1" data-i18n="admin_lbl_password">Password</label>
+                        <input id="new-pass" type="password" class="w-full bg-slate-900 border border-slate-600 p-2 rounded text-white outline-none focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1" data-i18n="admin_lbl_role">System Role</label>
+                        <select id="new-role" class="w-full bg-slate-900 border border-slate-600 p-2 rounded text-white outline-none focus:border-cyan-500">
+                            <option value="user" data-i18n="admin_role_user">Standard User (Restricted)</option>
+                            <option value="admin" data-i18n="admin_role_admin">Full Admin (All Servers)</option>
+                        </select>
+                    </div>
+                    <button onclick="createUser()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded transition shadow-lg mt-2" data-i18n="admin_btn_create">
+                        Create Account
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl">
+                <h3 class="text-lg font-bold text-cyan-400 border-b border-slate-700 pb-2 mb-4 uppercase tracking-wider">
+                    <i class="fa fa-server mr-2"></i><span data-i18n="admin_sys_title">System Config (.env)</span>
+                </h3>
+                <div class="space-y-4 text-sm">
+                    <div>
+                        <label class="text-slate-400 block mb-1">PORT</label>
+                        <input id="env-port" type="number" class="w-full bg-slate-900 border border-slate-600 p-2 rounded text-white outline-none focus:border-cyan-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">SERVER_IP</label>
+                        <input id="env-server-ip" type="text" class="w-full bg-slate-900 border border-slate-600 p-2 rounded text-white outline-none focus:border-cyan-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">LOCAL_IP</label>
+                        <input id="env-local-ip" type="text" class="w-full bg-slate-900 border border-slate-600 p-2 rounded text-white outline-none focus:border-cyan-500 font-mono">
+                    </div>
+                    <button onclick="saveEnv()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded transition shadow-lg mt-2 flex items-center justify-center gap-2">
+                        <i class="fa fa-save"></i> <span data-i18n="admin_btn_save_env">Save Environment</span>
+                    </button>
+                    <div class="border-t border-slate-700 pt-4 mt-4">
+                        <button onclick="restartSystem()" class="w-full bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-600/30 font-bold py-2.5 rounded transition shadow-lg flex items-center justify-center gap-2">
+                            <i class="fa fa-power-off"></i> <span data-i18n="admin_btn_restart_node">Restart TAM Node</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="lg:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl h-fit">
+            <h3 class="text-lg font-bold text-cyan-400 border-b border-slate-700 pb-2 mb-4 uppercase tracking-wider">
+                <i class="fa fa-users mr-2"></i><span data-i18n="admin_active_accounts">Active Accounts</span>
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                    <tr class="text-slate-400 border-b border-slate-700">
+                        <th class="p-3" data-i18n="admin_lbl_username">Username</th>
+                        <th class="p-3" data-i18n="admin_th_role">Role</th>
+                        <th class="p-3" data-i18n="admin_th_servers">Allowed Servers</th>
+                        <th class="p-3 text-right" data-i18n="admin_th_actions">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody id="users-table-body" class="divide-y divide-slate-800"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/i18n.js"></script>
+<script>
+    // ============================================================
+    // Tuxruku ASA Manager - ADMIN PANEL LOGIC
+    // ============================================================
+
+    let servers = [];
+
+    window.onload = async () => {
+        if (typeof initTranslation === 'function') await initTranslation();
+        await loadServers();
+        await loadUsers();
+        await loadEnv();
+    };
+
+    async function loadServers() {
+        try {
+            const res = await fetch('/api/instances');
+            servers = await res.json();
+        } catch (e) {
+            console.error("Failed to load servers", e);
+        }
+    }
+
+    async function loadUsers() {
+        try {
+            const res = await fetch('/auth/admin/users');
+            const data = await res.json();
+            const tbody = document.getElementById('users-table-body');
+
+            const allAccessTxt = t.admin_has_all_access || "Has access to everything";
+            const deleteTxt = t.admin_title_delete || "Delete Account";
+
+            tbody.innerHTML = data.users.map(user => {
+                const isAdmin = user.role === 'admin';
+
+                const serverCheckboxes = isAdmin
+                    ? `<span class="text-xs text-slate-500 italic">${allAccessTxt}</span>`
+                    : servers.map(srv => {
+                        const checked = user.allowedServers.includes(srv.id) ? 'checked' : '';
+                        return `
+                            <label class="flex items-center gap-1 text-xs text-slate-300 bg-black/40 px-2 py-1 rounded border border-slate-700 select-none cursor-pointer">
+                                <input type="checkbox" ${checked} onclick="togglePermission(${user.id}, ${srv.id}, this.checked)">
+                                ${srv.name}
+                            </label>
+                        `;
+                    }).join('<div class="h-1"></div>');
+
+                return `
+                    <tr class="hover:bg-slate-700/30 transition">
+                        <td class="p-3 font-bold text-white"><i class="fa ${isAdmin ? 'fa-user-shield text-amber-400' : 'fa-user text-slate-400'} mr-2"></i>${user.username}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${isAdmin ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-700 text-slate-300'}">${user.role.toUpperCase()}</span></td>
+                        <td class="p-3 flex flex-wrap gap-1 max-w-xs">${serverCheckboxes}</td>
+                        <td class="p-3 text-right">
+                            <button onclick="deleteUser(${user.id})" class="text-red-400 hover:text-red-500 p-2 transition" ${user.id === 1000 ? 'disabled class="opacity-20"' : ''} title="${deleteTxt}">
+                                <i class="fa fa-trash-can"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error("Failed to load users", e);
+        }
+    }
+
+    async function createUser() {
+        const username = document.getElementById('new-user').value.trim();
+        const password = document.getElementById('new-pass').value;
+        const role = document.getElementById('new-role').value;
+
+        if(!username || !password) {
+            return alert(t.admin_err_fill_fields || "Fill out fields");
+        }
+
+        try {
+            const res = await fetch('/auth/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, role })
+            });
+            const data = await res.json();
+
+            if(data.success) {
+                document.getElementById('new-user').value = '';
+                document.getElementById('new-pass').value = '';
+                loadUsers();
+            } else {
+                alert(data.message);
+            }
+        } catch (e) {
+            console.error("Failed to create user", e);
+        }
+    }
+
+    async function togglePermission(userId, serverId, isChecked) {
+        try {
+            const userRow = event.target.closest('tr');
+            const checkboxes = userRow.querySelectorAll('input[type="checkbox"]');
+            const allowedServers = [];
+
+            servers.forEach((srv, idx) => {
+                if (checkboxes[idx] && checkboxes[idx].checked) allowedServers.push(srv.id);
+            });
+
+            await fetch(`/auth/admin/users/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ allowedServers })
+            });
+        } catch (e) {
+            console.error("Failed to update permissions", e);
+        }
+    }
+
+    async function deleteUser(id) {
+        const confirmMsg = t.admin_confirm_delete || "Are you sure you want to delete this user?";
+
+        if (confirm(confirmMsg)) {
+            try {
+                await fetch(`/auth/admin/users/${id}`, { method: 'DELETE' });
+                loadUsers();
+            } catch (e) {
+                console.error("Failed to delete user", e);
+            }
+        }
+    }
+
+    // ============================================================
+    // SYSTEM CONFIG (.ENV) LOGIC
+    // ============================================================
+
+    async function loadEnv() {
+        try {
+            const res = await fetch('/auth/admin/system/env');
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('env-port').value = data.env.port;
+                document.getElementById('env-server-ip').value = data.env.serverIp;
+                document.getElementById('env-local-ip').value = data.env.localIp;
+            }
+        } catch (e) {
+            console.error("Failed to load .env variables", e);
+        }
+    }
+
+    async function saveEnv() {
+        const port = document.getElementById('env-port').value;
+        const serverIp = document.getElementById('env-server-ip').value;
+        const localIp = document.getElementById('env-local-ip').value;
+
+        try {
+            const res = await fetch('/auth/admin/system/env', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port, serverIp, localIp })
+            });
+            const data = await res.json();
+            alert(data.message);
+        } catch (e) {
+            alert(t.admin_err_comms || "Failed to communicate with server.");
+        }
+    }
+
+    async function restartSystem() {
+        const confirmMsg = t.admin_confirm_restart || "WARNING: This will restart the entire TAM interface. Active Ark servers will NOT be affected, but the web panel will be offline for a few seconds. Continue?";
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            const res = await fetch('/auth/admin/system/restart', { method: 'POST' });
+            const data = await res.json();
+            alert(data.message);
+            setTimeout(() => { window.location.reload(); }, 3000);
+        } catch (e) {
+            alert(t.admin_err_comms || "Failed to send restart signal.");
+        }
+    }
+</script>
+</body>
+</html>

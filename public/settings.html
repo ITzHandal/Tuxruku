@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tuxruku ASA Manager - Dynamic Settings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body { background: #0f172a; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .setting-card {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgb(51 65 85);
+            border-radius: 16px;
+            padding: 18px;
+            transition: all .2s ease;
+        }
+        .setting-card:hover { border-color: rgba(34, 211, 238, .4); transform: translateY(-1px); }
+        .tab-active { background: rgb(8 145 178); color: white; }
+        .tab-inactive { background: transparent; color: rgb(148 163 184); }
+        .tab-inactive:hover { color: white; background: rgba(15,23,42,.5); }
+        .scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .scrollbar::-webkit-scrollbar-thumb { background: rgb(51 65 85); border-radius: 20px; }
+        .scrollbar::-webkit-scrollbar-track { background: transparent; }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen p-6">
+<div class="max-w-7xl mx-auto">
+
+    <header class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8 border-b border-slate-700 pb-5">
+        <div>
+            <a href="/" class="text-xs uppercase tracking-widest text-cyan-400 hover:underline font-bold">
+                <i class="fa fa-arrow-left mr-1"></i> <span data-i18n="settings_back_dashboard">Back To Dashboard</span>
+            </a>
+            <h1 class="text-4xl font-black text-white mt-2 tracking-tight" data-i18n="settings_title">ASA Dynamic Settings</h1>
+            <p class="text-slate-400 mt-1 text-sm" data-i18n="settings_subtitle">Fully schema-based ARK Survival Ascended server settings system</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="reloadSettings()" class="bg-slate-700 hover:bg-slate-600 transition px-5 py-3 rounded-xl font-bold shadow-lg">
+                <i class="fa fa-rotate-right mr-2"></i> <span data-i18n="settings_btn_reload">Reload</span>
+            </button>
+            <button onclick="saveSettings()" class="bg-cyan-600 hover:bg-cyan-500 transition px-6 py-3 rounded-xl font-bold shadow-lg shadow-cyan-600/30 text-white">
+                <i class="fa fa-save mr-2"></i> <span data-i18n="settings_btn_save">Save Settings</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+        <div class="setting-card">
+            <div class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2" data-i18n="settings_stat_server">Server</div>
+            <div id="server-name" class="text-xl font-bold text-cyan-400" data-i18n="settings_loading">Loading...</div>
+        </div>
+        <div class="setting-card">
+            <div class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2" data-i18n="settings_stat_categories">Categories</div>
+            <div id="category-count" class="text-xl font-bold text-white">0</div>
+        </div>
+        <div class="setting-card">
+            <div class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2" data-i18n="settings_stat_settings">Settings</div>
+            <div id="setting-count" class="text-xl font-bold text-white">0</div>
+        </div>
+        <div class="setting-card">
+            <div class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2" data-i18n="settings_stat_status">Status</div>
+            <div id="save-status" class="text-xl font-bold text-emerald-400" data-i18n="settings_status_ready">Ready</div>
+        </div>
+    </div>
+
+    <div class="setting-card mb-6">
+        <div class="flex flex-col lg:flex-row gap-4">
+            <div class="flex-1 relative">
+                <i class="fa fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                <input id="settings-search" type="text" placeholder="Search settings..." class="w-full bg-black border border-slate-700 rounded-xl pl-12 pr-4 py-3 outline-none focus:border-cyan-500 text-white">
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="expandAll()" class="bg-slate-700 hover:bg-slate-600 px-4 py-3 rounded-xl font-bold transition">
+                    <i class="fa fa-expand mr-2"></i> <span data-i18n="settings_btn_expand">Expand</span>
+                </button>
+                <button onclick="collapseAll()" class="bg-slate-700 hover:bg-slate-600 px-4 py-3 rounded-xl font-bold transition">
+                    <i class="fa fa-compress mr-2"></i> <span data-i18n="settings_btn_collapse">Collapse</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="category-tabs" class="flex gap-2 overflow-x-auto scrollbar pb-3 mb-6"></div>
+
+    <div id="settings-container" class="space-y-6"></div>
+
+    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl mt-8 mb-8">
+        <h3 class="text-xl font-bold text-cyan-400 border-b border-slate-700 pb-2 mb-4 uppercase tracking-wider">
+            <i class="fa fa-file-code mr-2"></i><span data-i18n="settings_ini_title">Advanced INI Editor</span>
+        </h3>
+        <p class="text-sm text-slate-400 mb-6" data-i18n="settings_ini_subtitle">Manually edit configuration files. Ideal for Mod settings that are not supported by the visual editor.</p>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+                <label class="text-slate-300 font-bold mb-2 block">GameUserSettings.ini</label>
+                <textarea id="raw-gus" rows="18" class="w-full bg-slate-900 border border-slate-600 p-3 rounded-lg text-emerald-400 font-mono text-xs focus:outline-none focus:border-cyan-500 whitespace-pre scrollbar-thin shadow-inner leading-relaxed" spellcheck="false"></textarea>
+            </div>
+            <div>
+                <label class="text-slate-300 font-bold mb-2 block">Game.ini</label>
+                <textarea id="raw-game" rows="18" class="w-full bg-slate-900 border border-slate-600 p-3 rounded-lg text-emerald-400 font-mono text-xs focus:outline-none focus:border-cyan-500 whitespace-pre scrollbar-thin shadow-inner leading-relaxed" spellcheck="false"></textarea>
+            </div>
+        </div>
+
+        <div class="mt-4 flex items-center">
+            <button onclick="saveRawSettings()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 px-6 rounded transition shadow-lg flex items-center gap-2">
+                <i class="fa fa-triangle-exclamation"></i> <span data-i18n="settings_ini_btn_save">Save Raw INI Files</span>
+            </button>
+            <span id="raw-save-status" class="ml-4 text-sm font-bold hidden transition-opacity"></span>
+        </div>
+    </div>
+</div>
+
+<script src="/js/i18n.js"></script>
+<script src="/js/settings-ui.js"></script>
+</body>
+</html>

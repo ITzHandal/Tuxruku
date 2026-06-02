@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tuxruku ASA Manager - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body class="bg-slate-900 flex items-center justify-center min-h-screen p-4 relative overflow-hidden">
+
+<div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-600/20 blur-[100px] rounded-full pointer-events-none"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-600/20 blur-[100px] rounded-full pointer-events-none"></div>
+
+<div class="bg-slate-800 border border-slate-700 p-8 rounded-2xl shadow-2xl w-full max-w-md relative z-10">
+    <div class="text-center mb-8">
+        <h1 class="text-4xl font-extrabold text-white tracking-tight mb-2">
+            <span data-i18n="title_main">Tuxruku ASA Manager</span>
+        </h1>
+        <p id="form-subtitle" class="text-slate-400" data-i18n="login_subtitle_auth">Keep Calm and Poly Farm</p>
+    </div>
+
+    <div id="alert-box" class="hidden mb-4 p-3 rounded bg-red-600/20 border border-red-600 text-red-400 text-sm font-bold text-center"></div>
+
+    <div class="space-y-4">
+        <div>
+            <label class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1 block" data-i18n="login_lbl_username">Username</label>
+            <div class="relative">
+                <i class="fa fa-user absolute left-3 top-3.5 text-slate-500"></i>
+                <input id="username" type="text" class="w-full bg-slate-900 border border-slate-600 text-white px-10 py-3 rounded-lg outline-none focus:border-blue-500 transition shadow-inner">
+            </div>
+        </div>
+        <div>
+            <label class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1 block" data-i18n="login_lbl_password">Password</label>
+            <div class="relative">
+                <i class="fa fa-lock absolute left-3 top-3.5 text-slate-500"></i>
+                <input id="password" type="password" onkeypress="if(event.key === 'Enter') submitForm()" class="w-full bg-slate-900 border border-slate-600 text-white px-10 py-3 rounded-lg outline-none focus:border-blue-500 transition shadow-inner">
+            </div>
+        </div>
+
+        <button id="action-btn" onclick="submitForm()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition shadow-lg mt-4 text-lg flex items-center justify-center gap-2">
+            <i id="action-icon" class="fa fa-right-to-bracket"></i>
+            <span id="action-btn-text" data-i18n="login_btn_login">Login</span>
+        </button>
+    </div>
+
+    <div class="mt-6 text-center text-sm text-slate-500 border-t border-slate-700 pt-6">
+        <span id="toggle-text" data-i18n="login_txt_need_account">Need an account?</span>
+        <button id="toggle-btn" onclick="toggleMode()" class="text-blue-400 hover:text-blue-300 font-bold ml-1 hover:underline transition" data-i18n="login_btn_register_here">Register here</button>
+    </div>
+</div>
+
+<script src="/js/i18n.js"></script>
+<script>
+    let isRegisterMode = false;
+
+    window.onload = async () => {
+        if (typeof initTranslation === 'function') {
+            await initTranslation();
+        }
+    };
+
+    function toggleMode() {
+        isRegisterMode = !isRegisterMode;
+
+        const actionIcon = document.getElementById('action-icon');
+        const actionText = document.getElementById('action-btn-text');
+        const actionBtn = document.getElementById('action-btn');
+        const toggleText = document.getElementById('toggle-text');
+        const toggleBtn = document.getElementById('toggle-btn');
+        const formSubtitle = document.getElementById('form-subtitle');
+
+        if (isRegisterMode) {
+            actionIcon.className = "fa fa-user-plus";
+            actionText.innerText = typeof t !== 'undefined' && t.login_btn_create ? t.login_btn_create : "Create Account";
+            actionBtn.className = "w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg transition shadow-lg mt-4 text-lg flex items-center justify-center gap-2";
+            toggleText.innerText = typeof t !== 'undefined' && t.login_txt_have_account ? t.login_txt_have_account : "Already have an account?";
+            toggleBtn.innerText = typeof t !== 'undefined' && t.login_btn_login_here ? t.login_btn_login_here : "Login here";
+            formSubtitle.innerText = typeof t !== 'undefined' && t.login_subtitle_create ? t.login_subtitle_create : "Create a new Admin Account";
+        } else {
+            actionIcon.className = "fa fa-right-to-bracket";
+            actionText.innerText = typeof t !== 'undefined' && t.login_btn_login ? t.login_btn_login : "Login";
+            actionBtn.className = "w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition shadow-lg mt-4 text-lg flex items-center justify-center gap-2";
+            toggleText.innerText = typeof t !== 'undefined' && t.login_txt_need_account ? t.login_txt_need_account : "Need an account?";
+            toggleBtn.innerText = typeof t !== 'undefined' && t.login_btn_register_here ? t.login_btn_register_here : "Register here";
+            formSubtitle.innerText = typeof t !== 'undefined' && t.login_subtitle_auth ? t.login_subtitle_auth : "Secure Server Authentication";
+        }
+
+        document.getElementById('alert-box').classList.add('hidden');
+    }
+
+    async function submitForm() {
+        const user = document.getElementById('username').value.trim();
+        const pass = document.getElementById('password').value;
+        const alertBox = document.getElementById('alert-box');
+
+        if (!user || !pass) {
+            alertBox.innerText = typeof t !== 'undefined' && t.login_err_fill_fields ? t.login_err_fill_fields : "Please fill in all fields.";
+            alertBox.classList.remove('hidden');
+            alertBox.className = "mb-4 p-3 rounded bg-red-600/20 border border-red-600 text-red-400 text-sm font-bold text-center";
+            return;
+        }
+
+        const endpoint = isRegisterMode ? '/auth/register' : '/auth/login';
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                if (isRegisterMode) {
+                    alertBox.className = "mb-4 p-3 rounded bg-emerald-600/20 border border-emerald-600 text-emerald-400 text-sm font-bold text-center";
+                    alertBox.innerText = data.message;
+                    alertBox.classList.remove('hidden');
+                    setTimeout(toggleMode, 2000);
+                } else {
+                    window.location.href = '/';
+                }
+            } else {
+                alertBox.className = "mb-4 p-3 rounded bg-red-600/20 border border-red-600 text-red-400 text-sm font-bold text-center";
+                alertBox.innerText = data.message;
+                alertBox.classList.remove('hidden');
+            }
+        } catch (e) {
+            alertBox.innerText = typeof t !== 'undefined' && t.login_err_server ? t.login_err_server : "Server connection failed.";
+            alertBox.className = "mb-4 p-3 rounded bg-red-600/20 border border-red-600 text-red-400 text-sm font-bold text-center";
+            alertBox.classList.remove('hidden');
+        }
+    }
+</script>
+</body>
+</html>
