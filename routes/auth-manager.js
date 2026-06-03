@@ -1,172 +1,174 @@
 // ============================================================
-// Tuxruku ASA Manager - AUTHENTICATION & PERMISSIONS
+// Tuxruku ASA Manager - BACKUP MANAGER
 // ============================================================
 
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const bcrypt = require('bcryptjs');
-
+const { exec } = require('child_process');
+const multer = require('multer');
 const router = express.Router();
-const USERS_FILE = path.join(__dirname, '..', 'data', 'users.json');
+
+const INSTANCES_FILE = path.join(__dirname, '..', 'data', 'instances.json');
 
 // ============================================================
-// HELPERS
+// HELPERS & CONFIG
 // ============================================================
 
-function loadUsers() {
-    if (!fs.existsSync(USERS_FILE)) return [];
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+function getInstance(id) {
+    if (!fs.existsSync(INSTANCES_FILE)) return null;
+    return JSON.parse(fs.readFileSync(INSTANCES_FILE, 'utf8')).find(i => i.id === parseInt(id));
 }
 
-function saveUsers(users) {
-    if (!fs.existsSync(path.dirname(USERS_FILE))) {
-        fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
+// Multer setup for direct upload to the server's backup directory
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const inst = getInstance(req.params.id);
+        if (!inst) return cb(new Error("Server instance not found"), null);
+
+        const backupDir = path.join(inst.path, 'Backups');
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+        cb(null, backupDir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, 'upload_' + Date.now() + '_' + file.originalname.replace(/\s+/g, '_'));
     }
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-}
-
-// Auto-seed default admin account on first run
-(function seedAdmin() {
-    const users = loadUsers();
-    if (users.length === 0) {
-        const hashedPassword = bcrypt.hashSync('admin123', 10);
-        users.push({
-            id: 1000,
-            username: 'admin',
-            password: hashedPassword,
-            role: 'admin',
-            allowedServers: []
-        });
-        saveUsers(users);
-        console.log("⚠️ [SECURITY] No users found. Created default account: admin / admin123");
-    }
-})();
-
-// Middleware to protect admin-only routes
-function requireAdmin(req, res, next) {
-    if (req.session && req.session.role === 'admin') return next();
-    return res.status(403).json({ success: false, message: 'Access denied: Admin role required.' });
-}
-
-// ============================================================
-// PUBLIC ROUTES
-// ============================================================
-
-router.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-    const users = loadUsers();
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-        return res.status(401).json({ success: false, message: 'Invalid username or password.' });
-    }
-
-    req.session.userId = user.id;
-    req.session.username = user.username;
-    req.session.role = user.role || 'user';
-    req.session.allowedServers = user.allowedServers || [];
-
-    res.json({ success: true, role: user.role });
 });
-
-router.post('/logout', (req, res) => {
-    req.session.destroy();
-    res.json({ success: true });
-});
+const upload = multer({ storage: storage });
 
 // ============================================================
-// ADMIN PANEL API
+// 1. CREATE LOCAL BACKUP (.tar.gz)
 // ============================================================
 
-router.get('/admin/users', requireAdmin, (req, res) => {
-    const users = loadUsers().map(({ password, ...u }) => u);
-    res.json({ success: true, users });
-});
+router.post('/instances/:id/backup/create', (req, res) => {
+    const inst = getInstance(req.params.id);
+    if (!inst) return res.status(404).json({ success: false, message: 'Instance not found.' });
 
-router.post('/admin/users', requireAdmin, async (req, res) => {
-    const { username, password, role, allowedServers } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ success: false, message: 'Missing required fields.' });
-    }
+    const backupDir = path.join(inst.path, 'Backups');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
-    const users = loadUsers();
-    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
-        return res.status(400).json({ success: false, message: 'Username is already taken.' });
-    }
+    const timestamp = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
+    const backupFilePath = path.join(backupDir, `backup_${timestamp}.tar.gz`);
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    users.push({
-        id: Date.now(),
-        username,
-        password: hashedPassword,
-        role: role || 'user',
-        allowedServers: allowedServers || []
+    const cmd = `tar -czf "${backupFilePath}" -C "${path.join(inst.path, 'ShooterGame')}" Saved`;
+
+    exec(cmd, (err) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'Snapshot created successfully!' });
     });
-
-    saveUsers(users);
-    res.json({ success: true, message: 'User created successfully!' });
-});
-
-router.put('/admin/users/:id', requireAdmin, (req, res) => {
-    const users = loadUsers();
-    const user = users.find(u => u.id === parseInt(req.params.id));
-
-    if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found.' });
-    }
-
-    if (req.body.role) user.role = req.body.role;
-    if (req.body.allowedServers) user.allowedServers = req.body.allowedServers.map(Number);
-
-    saveUsers(users);
-    res.json({ success: true, message: 'Permissions updated successfully!' });
-});
-
-router.delete('/admin/users/:id', requireAdmin, (req, res) => {
-    let users = loadUsers();
-    if (parseInt(req.params.id) === 1000) {
-        return res.status(400).json({ success: false, message: 'Cannot delete the primary admin account.' });
-    }
-
-    users = users.filter(u => u.id !== parseInt(req.params.id));
-    saveUsers(users);
-    res.json({ success: true, message: 'User deleted successfully.' });
 });
 
 // ============================================================
-// SYSTEM & ENV MANAGER API
+// 2. UPLOAD EXTERNAL SAVEFILE (.zip / .tar.gz)
 // ============================================================
 
-router.get('/admin/system/env', requireAdmin, (req, res) => {
-    const envPath = path.join(__dirname, '..', '.env');
-    let content = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+router.post('/instances/:id/backup/upload', upload.single('savefile'), (req, res) => {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file was received.' });
+    res.json({ success: true, message: 'Save file uploaded to vault! You can now restore it.' });
+});
 
-    // Enkel parser for å sende verdiene til frontend
-    const envVars = { port: '', serverIp: '', localIp: '' };
-    content.split('\n').forEach(line => {
-        if (line.startsWith('PORT=')) envVars.port = line.split('=')[1].trim();
-        if (line.startsWith('SERVER_IP=')) envVars.serverIp = line.split('=')[1].trim();
-        if (line.startsWith('LOCAL_IP=')) envVars.localIp = line.split('=')[1].trim();
+// ============================================================
+// 3. LIST ALL BACKUPS & UPLOADS
+// ============================================================
+
+router.get('/instances/:id/backup/list', (req, res) => {
+    const inst = getInstance(req.params.id);
+    if (!inst) return res.status(404).json({ success: false, message: 'Instance not found.' });
+
+    const backupDir = path.join(inst.path, 'Backups');
+    if (!fs.existsSync(backupDir)) return res.json({ success: true, backups: [] });
+
+    fs.readdir(backupDir, (err, files) => {
+        if (err) return res.status(500).json({ success: false, message: 'Error reading backup directory.' });
+
+        const backups = files
+            .filter(f => (f.startsWith('backup_') || f.startsWith('upload_') || f.startsWith('auto_backup_')) && (f.endsWith('.tar.gz') || f.endsWith('.zip')))
+            .map(f => {
+                const stats = fs.statSync(path.join(backupDir, f));
+                return {
+                    filename: f,
+                    size: (stats.size / (1024 * 1024)).toFixed(2) + " MB",
+                    created: stats.mtime
+                };
+            });
+
+        backups.sort((a, b) => b.created - a.created);
+        res.json({ success: true, backups });
     });
-
-    res.json({ success: true, env: envVars });
 });
 
-router.post('/admin/system/env', requireAdmin, (req, res) => {
-    const { port, serverIp, localIp } = req.body;
-    const envPath = path.join(__dirname, '..', '.env');
+// ============================================================
+// 4. RESTORE SAVEFILE (Handles .tar.gz, .zip, and SP conversion)
+// ============================================================
 
-    const newEnv = `PORT=${port || 8686}\nSERVER_IP=${serverIp || '127.0.0.1'}\nLOCAL_IP=${localIp || '127.0.0.1'}\n`;
-    fs.writeFileSync(envPath, newEnv);
+router.post('/instances/:id/backup/restore', (req, res) => {
+    const inst = getInstance(req.params.id);
+    if (!inst) return res.status(404).json({ success: false, message: 'Instance not found.' });
+    if (inst.status === 'Running') {
+        return res.status(400).json({ success: false, message: 'CRITICAL: Stop the server before restoring!' });
+    }
 
-    res.json({ success: true, message: 'System environment variables updated.' });
+    const { filename } = req.body;
+    const backupFilePath = path.join(inst.path, 'Backups', filename);
+    if (!fs.existsSync(backupFilePath)) {
+        return res.status(404).json({ success: false, message: 'File does not exist.' });
+    }
+
+    const shooterGameDir = path.join(inst.path, 'ShooterGame');
+    const savedDir = path.join(shooterGameDir, 'Saved');
+
+    // Remove existing world state to prevent conflicts
+    const deleteCmd = `rm -rf "${savedDir}"`;
+
+    // Extract command based on file type
+    let extractCmd = "";
+    if (filename.endsWith('.zip')) {
+        extractCmd = `unzip -q -o "${backupFilePath}" -d "${shooterGameDir}"`;
+    } else {
+        extractCmd = `tar -xzf "${backupFilePath}" -C "${shooterGameDir}"`;
+    }
+
+    // Windows/Singleplayer directory conversion logic
+    const fixPathsCmd = `
+        if [ -d "${shooterGameDir}/SavedArksLocal" ]; then
+            mkdir -p "${savedDir}"
+            mv "${shooterGameDir}/SavedArksLocal" "${savedDir}/SavedArks"
+        fi
+        
+        if [ -d "${shooterGameDir}/Config" ]; then
+            mkdir -p "${savedDir}"
+            mv "${shooterGameDir}/Config" "${savedDir}/"
+        fi
+        
+        if [ -d "${savedDir}/SavedArksLocal" ]; then
+            mv "${savedDir}/SavedArksLocal" "${savedDir}/SavedArks"
+        fi
+    `;
+
+    console.log(`[Backup] Restoring and converting ${filename} for ${inst.name}...`);
+
+    exec(`${deleteCmd} && ${extractCmd} && ${fixPathsCmd}`, (err) => {
+        if (err) {
+            console.error("[Backup] Restore failed:", err);
+            return res.status(500).json({ success: false, message: 'Extraction failed. Ensure the archive is valid.' });
+        }
+        res.json({ success: true, message: 'World restored and installed successfully!' });
+    });
 });
 
-router.post('/admin/system/restart', requireAdmin, (req, res) => {
-    res.json({ success: true, message: 'Restart signal sent. Server will reboot in 2 seconds.' });
-    // Dreper Node-prosessen etter 2 sekunder. Systemd (Linux) vil da starte den på nytt automatisk.
-    setTimeout(() => { process.exit(0); }, 2000);
+// ============================================================
+// 5. DELETE FILE FROM VAULT
+// ============================================================
+
+router.delete('/instances/:id/backup/:filename', (req, res) => {
+    const inst = getInstance(req.params.id);
+    if (!inst) return res.status(404).json({ success: false, message: 'Instance not found.' });
+
+    const backupFilePath = path.join(inst.path, 'Backups', req.params.filename);
+    if (fs.existsSync(backupFilePath)) fs.unlinkSync(backupFilePath);
+
+    res.json({ success: true, message: 'Backup deleted.' });
 });
 
 module.exports = router;
