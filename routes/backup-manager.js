@@ -83,7 +83,7 @@ router.get('/instances/:id/backup/list', (req, res) => {
         if (err) return res.status(500).json({ success: false, message: 'Error reading backup directory.' });
 
         const backups = files
-            .filter(f => (f.startsWith('backup_') || f.startsWith('upload_')) && (f.endsWith('.tar.gz') || f.endsWith('.zip')))
+            .filter(f => (f.startsWith('backup_') || f.startsWith('upload_') || f.startsWith('auto_backup_')) && (f.endsWith('.tar.gz') || f.endsWith('.zip')))
             .map(f => {
                 const stats = fs.statSync(path.join(backupDir, f));
                 return {
