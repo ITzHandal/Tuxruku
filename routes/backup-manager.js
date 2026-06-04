@@ -48,8 +48,19 @@ router.post('/instances/:id/backup/create', (req, res) => {
     const backupDir = path.join(inst.path, 'Backups');
     if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
+
+    let currentVersion = "unknown";
+    try {
+        const versionFilePath = path.join(inst.path, 'ShooterGame', 'Binaries', 'Win64', 'ARKVersion.txt');
+        if (fs.existsSync(versionFilePath)) {
+            currentVersion = fs.readFileSync(versionFilePath, 'utf8').trim();
+        }
+    } catch (e) {}
+
     const timestamp = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
-    const backupFilePath = path.join(backupDir, `backup_${timestamp}.tar.gz`);
+
+
+    const backupFilePath = path.join(backupDir, `backup_v${currentVersion}_${timestamp}.tar.gz`);
 
     const cmd = `tar -czf "${backupFilePath}" -C "${path.join(inst.path, 'ShooterGame')}" Saved`;
 
