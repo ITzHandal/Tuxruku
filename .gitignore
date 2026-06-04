@@ -1,11 +1,4 @@
-# Node pakker (brukerne laster ned disse selv via npm install)
 node_modules/
-
-# Miljøvariabler (Dine IP-er og porter)
 .env
-
-# Databasen din (Vi vil ikke dele din admin-bruker eller serverliste!)
 data/instances.json
-
-# Mac/OSX søppel-filer (i tilfelle noen laster ned på Mac)
 .DS_Store
