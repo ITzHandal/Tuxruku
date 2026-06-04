@@ -80,10 +80,27 @@
             if (data.success && data.backups.length > 0) {
                 listDiv.innerHTML = data.backups.map(b => {
                     const dateFormatted = new Date(b.created).toLocaleString();
+
+
+                    const isAuto = b.filename.startsWith('auto_backup_');
+                    const typeBadge = isAuto
+                        ? `<span class="bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[10px] px-2 py-0.5 rounded-md font-sans font-bold"><i class="fa fa-robot mr-1"></i>AUTO</span>`
+                        : `<span class="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[10px] px-2 py-0.5 rounded-md font-sans font-bold"><i class="fa fa-user mr-1"></i>MANUAL</span>`;
+
+
+                    const versionMatch = b.filename.match(/_v([0-9.]+)_/);
+                    const versionStr = versionMatch ? versionMatch[1] : "Elder/Unknown";
+                    const versionBadge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] px-2 py-0.5 rounded-md font-sans font-bold"><i class="fa fa-code-branch mr-1"></i>v${versionStr}</span>`;
+
                     return `
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-black/30 p-4 rounded-xl border border-slate-700/60 font-mono text-xs gap-4">
                             <div class="space-y-1">
-                                <span class="text-slate-300 block text-sm font-bold font-sans truncate max-w-md"><i class="fa fa-file-archive text-emerald-500 mr-2"></i>${b.filename}</span>
+                                <div class="flex items-center gap-2 truncate max-w-xl">
+                                    <i class="fa fa-file-archive text-emerald-500 flex-shrink-0"></i>
+                                    <span class="text-slate-300 text-sm font-bold font-sans truncate">${b.filename}</span>
+                                    ${typeBadge}
+                                    ${versionBadge}
+                                </div>
                                 <div class="flex gap-4 text-slate-500 text-[11px] font-sans">
                                     <span><i class="fa fa-calendar mr-1"></i> ${dateFormatted}</span>
                                     <span><i class="fa fa-weight-hanging mr-1"></i> ${b.size}</span>
