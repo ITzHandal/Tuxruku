@@ -581,7 +581,6 @@ function startCronEngine() {
         const schedule = inst.settings?.AutoBackupSchedule || "0";
         const retentionLimit = parseInt(inst.settings?.AutoBackupRetention || 5);
 
-
         if (schedule !== "0") {
             console.log(`[CRON] Scheduling Auto-Backup for ${inst.name} (${schedule}) - Keeping max ${retentionLimit}`);
 
@@ -591,10 +590,19 @@ function startCronEngine() {
                 const backupDir = path.join(inst.path, 'Backups');
                 if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
+
+                let currentVersion = "unknown";
+                try {
+                    const versionFilePath = path.join(inst.path, 'ShooterGame', 'Binaries', 'Win64', 'ARKVersion.txt');
+                    if (fs.existsSync(versionFilePath)) {
+                        currentVersion = fs.readFileSync(versionFilePath, 'utf8').trim();
+                    }
+                } catch (e) { console.error("[CRON] can't read ARKVersion.txt", e); }
+
                 const timestamp = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
 
-                const backupFilePath = path.join(backupDir, `auto_backup_${timestamp}.tar.gz`);
 
+                const backupFilePath = path.join(backupDir, `auto_backup_v${currentVersion}_${timestamp}.tar.gz`);
                 const cmd = `tar -czf "${backupFilePath}" -C "${path.join(inst.path, 'ShooterGame')}" Saved`;
 
                 exec(cmd, (err) => {
@@ -604,10 +612,8 @@ function startCronEngine() {
                     }
                     console.log(`[CRON] Backup created for ${inst.name}. Running cleanup...`);
 
-
                     fs.readdir(backupDir, (err, files) => {
                         if (err) return;
-
 
                         const backups = files
                             .filter(f => f.startsWith('backup_') || f.startsWith('auto_backup_'))
@@ -616,7 +622,6 @@ function startCronEngine() {
                                 time: fs.statSync(path.join(backupDir, f)).mtime.getTime()
                             }))
                             .sort((a, b) => b.time - a.time);
-
 
                         if (backups.length > retentionLimit) {
                             const filesToDelete = backups.slice(retentionLimit);
@@ -632,7 +637,34 @@ function startCronEngine() {
     });
 }
 
-// Start motoren!
+app.post('/api/versions/download', (req, res) => {
+    const { manifest } = req.body;
+    const installDir = '/home/ark/asa-versions/latest';
+
+
+    const args = ['+force_install_dir', installDir, '+login', 'anonymous', '+app_update', '2430930'];
+    if (manifest) {
+        args.push('-beta', '', '-manifest', manifest);
+    }
+    args.push('validate', '+quit');
+
+    console.log(`[SteamCMD] Staring download: ${args.join(' ')}`);
+    const steamcmd = spawn('/home/ark/steamcmd/steamcmd.sh', args);
+
+    steamcmd.stdout.on('data', (data) => io.emit('version-download-log', data.toString()));
+
+    steamcmd.on('close', (code) => {
+        const versions = JSON.parse(fs.readFileSync(VERSIONS_FILE, 'utf8'));
+        const latest = versions.find(v => v.id === 'latest');
+        if (latest && !manifest) {
+            latest.status = code === 0 ? 'Installed' : 'Error';
+            fs.writeFileSync(VERSIONS_FILE, JSON.stringify(versions, null, 2));
+        }
+        io.emit('version-download-complete', code);
+    });
+    res.json({ success: true });
+});
+
 startCronEngine();
 io.on('connection', (socket) => {});
 server.listen(PORT, () => { console.log(`Tuxruku ASA Manager is running on port: ${PORT}`); });
